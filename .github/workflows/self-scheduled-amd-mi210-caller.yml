@@ -20,7 +20,6 @@ jobs:
       docker: huggingface/transformers-pytorch-amd-gpu
       ci_event: Scheduled CI (AMD) - mi210
     secrets: inherit
-
   #torch-pipeline:
   #  name: Torch pipeline CI
   #  uses: huggingface/hf-workflows/.github/workflows/transformers_amd_ci_scheduled.yaml@main
