@@ -485,6 +485,7 @@ class LlamaFlashAttention2(LlamaAttention):
             sliding_window=getattr(self, "sliding_window", None),
             use_top_left_mask=self._flash_attn_uses_top_left_mask,
             is_causal=self.is_causal,
+            layer_idx=self.layer_idx,
             **kwargs,
         )
 
