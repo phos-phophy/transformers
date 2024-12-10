@@ -263,16 +263,16 @@ def flash_attention_forward(config, query, key, value, mask, target_dtype=torch.
 
     dropout_rate = config.attention_dropout if training else 0.0
 
-    input_dtype = query_states.dtype
+    input_dtype = query.dtype
     if input_dtype == torch.float32:
-        query_states = query_states.to(target_dtype)
-        key_states = key_states.to(target_dtype)
-        value_states = value_states.to(target_dtype)
+        query = query.to(target_dtype)
+        key = key.to(target_dtype)
+        value = value.to(target_dtype)
 
     attn_output = _flash_attention_forward(
-        query_states,
-        key_states,
-        value_states,
+        query,
+        key,
+        value,
         mask,
         seq_len,
         dropout=dropout_rate,
