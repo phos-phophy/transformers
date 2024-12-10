@@ -171,7 +171,7 @@ class LlamaRotaryEmbedding(nn.Module):
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
     x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
+    x2 = x[..., x.shape[-1] // 2:]
     return torch.cat((-x2, x1), dim=-1)
 
 
@@ -260,9 +260,6 @@ def flash_attention_forward(config, query, key, value, mask, target_dtype=torch.
         value = value[:, :, :seq_len]
     else:
         seq_len = query.shape[1]
-    query_states = query.transpose(1, 2)
-    key_states = key.transpose(1, 2)
-    value_states = value.transpose(1, 2)
 
     dropout_rate = config.attention_dropout if training else 0.0
 
@@ -400,12 +397,12 @@ class LlamaAttention(nn.Module):
         value_states = self.v_proj(hidden_states)
 
         # use -1 to infer num_heads and num_key_value_heads as they may vary if tensor parallel is used
-        query_states = query_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, q_len, -1, self.head_dim)
+        key_states = key_states.view(bsz, q_len, -1, self.head_dim)
+        value_states = value_states.view(bsz, q_len, -1, self.head_dim)
 
         cos, sin = position_embeddings
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, unsqueeze_dim=2)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
@@ -724,9 +721,13 @@ class LlamaModel(LlamaPreTrainedModel):
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
 
-        causal_mask = self._update_causal_mask(
-            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
-        )
+        if inputs_embeds.dim() > 2:
+            causal_mask = self._update_causal_mask(
+                attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
+            )
+        else:
+            causal_mask = None
+
         hidden_states = inputs_embeds
 
         # create position embeddings to be shared across the decoder layers
