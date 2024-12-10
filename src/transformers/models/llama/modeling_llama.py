@@ -253,17 +253,18 @@ def eager_attention_forward(config, query, key, value, mask, **_kwargs):
     return attn_output, attn_weights
 
 
-def flash_attention_forward(config, query, key, value, mask, target_dtype=torch.float16, **kwargs):
+def flash_attention_forward(config, query, key, value, mask, target_dtype=torch.float16, training=False, layer_idx=0, **kwargs):
     if mask is not None:
         seq_len = mask.shape[1]
         query = query[:, :, :seq_len]
         value = value[:, :, :seq_len]
-
+    else:
+        seq_len = query.shape[1]
     query_states = query.transpose(1, 2)
     key_states = key.transpose(1, 2)
     value_states = value.transpose(1, 2)
 
-    dropout_rate = config.attention_dropout if config.training else 0.0
+    dropout_rate = config.attention_dropout if training else 0.0
 
     input_dtype = query_states.dtype
     if input_dtype == torch.float32:
@@ -278,10 +279,11 @@ def flash_attention_forward(config, query, key, value, mask, target_dtype=torch.
         mask,
         seq_len,
         dropout=dropout_rate,
-        softmax_scale=config.scaling,
-        is_causal=config.is_causal,
-        sliding_window=config.sliding_window,
-        use_top_left_mask=config._flash_attn_uses_top_left_mask,
+        softmax_scale=getattr(config, "scaling", 1.0),
+        is_causal=getattr(config, "is_causal", False),
+        sliding_window=getattr(config, "sliding_window", None),
+        use_top_left_mask=getattr(config, "_flash_attn_uses_top_left_mask", False),
+        layer_idx=layer_idx,
         **kwargs
     )
 
@@ -416,7 +418,7 @@ class LlamaAttention(nn.Module):
             attention_type = self.config._attn_implementation
 
         attn_output, attn_weights = LLAMA_ATTENTION_FUNCTION[attention_type](
-            self, query_states, key_states, value_states, attention_mask, output_attentions=output_attentions, **kwargs
+            self.config, query_states, key_states, value_states, attention_mask, output_attentions=output_attentions, training=self.training, layer_idx=self.layer_idx,**kwargs
         )
 
         attn_output = attn_output.reshape(bsz, q_len, -1)
